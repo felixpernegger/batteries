@@ -190,7 +190,8 @@ public theorem toFinDigitsFixed_add [NeZero base] : toFinDigitsFixed n base (pre
 public theorem toFinDigits_zero : toFinDigits 0 base = [] := by
   rw [toFinDigits, dite_eq_left (.inl rfl)]
 
-public theorem toFinDigits_of_ne_zero (h : 2 ≤ base) [NeZero base] (hn : n ≠ 0) :
+public theorem toFinDigits_of_ne_zero (h : 2 ≤ base) (hn : n ≠ 0) :
+    haveI : NeZero base := ⟨by omega⟩
     toFinDigits n base = toFinDigits (n / base) base ++ [Fin.ofNat base n] := by
   rw [toFinDigits, dite_eq_right (by omega)]
 
@@ -205,9 +206,11 @@ public theorem toFinDigits_of_ne_zero (h : 2 ≤ base) [NeZero base] (hn : n ≠
       rw [toFinDigits_of_ne_zero h hn, ofFinDigits_append, ih _ (Nat.div_lt_self (by omega) h)]
       simp [Nat.div_add_mod']
 
-public theorem toFinDigits_eq_append (h : 2 ≤ base) [NeZero base] (hk : base ^ k ≤ n) :
+public theorem toFinDigits_eq_append (h : 2 ≤ base) (hk : base ^ k ≤ n) :
+    haveI : NeZero base := ⟨by omega⟩
     toFinDigits n base =
       toFinDigits (n / base ^ k) base ++ toFinDigitsFixed (n % base ^ k) base k := by
+  have : NeZero base := ⟨by omega⟩
   induction k generalizing n with
   | zero => simp [Nat.mod_one]
   | succ k ih =>

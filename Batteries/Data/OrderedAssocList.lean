@@ -500,34 +500,37 @@ theorem orderedFind?_cons [TransCmp cmp]
     orderedFind? cmp (.cons a b t) a = some b := by
   simp [AssocList.orderedFind?, ReflCmp.compare_self]
 
-theorem orderedFind?_orderedInsert {cmp : α → α → Ordering} [LawfulEqCmp cmp] [TransCmp cmp]
-    (l : AssocList α β) (h : KeysOrdered cmp l) (a : α) (b : β) :
+theorem orderedFind?_orderedInsert {cmp : α → α → Ordering} [TransCmp cmp]
+    (l : AssocList α β) (a : α) (b : β) :
     (orderedInsert cmp l a b).orderedFind? cmp x =
       if cmp x a = .eq then some b else l.orderedFind? cmp x := by
-  match l with
-  | .nil =>
-    simp only [orderedInsert, orderedFind?_cons, keysOrdered_cons_nil]
-  | .cons a' b' t =>
-    simp only [orderedInsert_cons]
-    split <;> rename_i h₁
-    · apply orderedFind?_cons
-      exact ⟨h₁, h⟩
-    · rcases LawfulEqCmp.eq_of_compare h₁
-      rw [orderedFind?_cons h, orderedFind?_cons]
-      · split <;> rfl
-      · exact h
-    · rw [orderedFind?_cons, orderedFind?_orderedInsert t h.tail, orderedFind?_cons h]
-      · split <;> rename_i h₂
-        · rcases (LawfulEqCmp.eq_of_compare h₂).symm
-          simp_all [OrientedCmp.lt_of_gt]
-        · rfl
-      · exact h.orderedInsert_aux h₁
-termination_by l.length
+  induction l with
+  | nil => cases h : cmp x a <;> simp [orderedInsert, orderedFind?, h]
+  | cons k v t ih =>
+    rw [orderedInsert_cons]
+    split <;> rename_i w
+    · cases h : cmp x a
+      · simp [orderedFind?, h, TransCmp.lt_trans h w]
+      · simp [orderedFind?, h]
+      · simp [orderedFind?, h]
+    · cases h : cmp x a
+      · simp [orderedFind?, h, TransCmp.lt_of_lt_of_eq h w]
+      · simp [orderedFind?, h]
+      · simp [orderedFind?, h, TransCmp.gt_of_gt_of_eq h w]
+    · have w' := OrientedCmp.lt_of_gt w
+      cases h : cmp x k
+      · simp [orderedFind?, h, TransCmp.lt_trans h w']
+      · simp [orderedFind?, h, TransCmp.lt_of_eq_of_lt h w']
+      · simp [orderedFind?, h, ih]
 
-theorem orderedFind?_orderedInsert_self {cmp : α → α → Ordering} [LawfulEqCmp cmp] [TransCmp cmp]
-    (l : AssocList α β) (h : KeysOrdered cmp l)  (a : α) (b : β) :
+theorem orderedFind?_orderedInsert_self {cmp : α → α → Ordering} [ReflCmp cmp]
+    (l : AssocList α β) (a : α) (b : β) :
     (orderedInsert cmp l a b).orderedFind? cmp a = some b := by
-  simp [h, orderedFind?_orderedInsert, ReflCmp.compare_self]
+  induction l with
+  | nil => simp [orderedInsert, orderedFind?, ReflCmp.compare_self]
+  | cons k v t ih =>
+    rw [orderedInsert_cons]
+    split <;> rename_i w <;> simp [orderedFind?, ReflCmp.compare_self, w, ih]
 
 /--
 If two `AssocList`s have ordered keys
@@ -607,24 +610,13 @@ theorem orderedFind?_filterMapVal {cmp : α → α → Ordering} [LawfulEqCmp cm
           h.tail.filterMapVal
 termination_by l.length
 
-theorem filterMapVal_filterMapVal {cmp : α → α → Ordering} [LawfulEqCmp cmp] [TransCmp cmp]
-    {f : α → γ → Option δ} {g : α → β → Option γ}
-    {l : AssocList α β} (h : KeysOrdered cmp l) :
+theorem filterMapVal_filterMapVal {f : α → γ → Option δ} {g : α → β → Option γ}
+    {l : AssocList α β} :
     filterMapVal f (filterMapVal g l) =
       filterMapVal (fun a b => (g a b).bind (fun c => f a c)) l := by
-  apply ext_orderedFind? (cmp := cmp)
-  · exact h.filterMapVal.filterMapVal
-  · exact h.filterMapVal
-  · intro a
-    rw [orderedFind?_filterMapVal, orderedFind?_filterMapVal h, orderedFind?_filterMapVal h]
-    · ext d
-      simp only [Option.bind_eq_some_iff]
-      constructor
-      · rintro ⟨c, ⟨⟨b, hb, hc⟩, hd⟩⟩
-        refine ⟨b, hb, c, hc, hd⟩
-      · rintro ⟨b, hb, c, hc, hd⟩
-        refine ⟨c, ⟨⟨b, hb, hc⟩, hd⟩⟩
-    · exact h.filterMapVal
+  induction l with
+  | nil => rfl
+  | cons k v t ih => cases h : g k v <;> simp [filterMapVal_cons, h, ih]
 
 end AssocList
 
@@ -830,7 +822,7 @@ variable [TransCmp cmp]
 
 theorem getElem?_insert (l : OrderedAssocList cmp β) (a : α) (b : β) :
     (insert l a b)[x]? = if cmp x a = .eq then some b else l[x]? :=
-  AssocList.orderedFind?_orderedInsert l.toAssocList l.keysOrdered a b
+  AssocList.orderedFind?_orderedInsert l.toAssocList a b
 
 theorem getElem?_insert_self (l : OrderedAssocList cmp β) (a : α) (b : β) :
     (insert l a b)[a]? = some b := by
@@ -874,12 +866,8 @@ theorem filterMapVal_filterMapVal
     {f : α → γ → Option δ} {g : α → β → Option γ}
     {l : OrderedAssocList cmp β} :
     filterMapVal f (filterMapVal g l) =
-      filterMapVal (fun a b => (g a b).bind (fun c => f a c)) l := by
-  apply ext_toAssocList
-  simp only [toAssocList_filterMapVal]
-  induction l.toAssocList with
-  | nil => rfl
-  | cons k v t ih => cases h : g k v <;> simp [AssocList.filterMapVal_cons, h, ih]
+      filterMapVal (fun a b => (g a b).bind (fun c => f a c)) l :=
+  ext_toAssocList AssocList.filterMapVal_filterMapVal
 
 end filterMapVal
 
@@ -1046,16 +1034,44 @@ theorem merge_comm
   ext
   simp [g']
 
+/-- Associativity of `merge`. The condition `g₂ a none none = none` follows from the others;
+see `merge_assoc_right` for the version assuming it instead of `f₂ a none none = none`. -/
+theorem merge_assoc_left
+    (f₁ : α → Option β₁ → Option β₂ → Option γ₁) (f₂ : α → Option γ₁ → Option β₃ → Option ε)
+    (g₁ : α → Option β₂ → Option β₃ → Option γ₂) (g₂ : α → Option β₁ → Option γ₂ → Option ε)
+    (hf₁ : ∀ a, f₁ a none none = none) (hf₂ : ∀ a, f₂ a none none = none)
+    (hg₁ : ∀ a, g₁ a none none = none)
+    (w : ∀ a x y z, f₂ a (f₁ a x y) z = g₂ a x (g₁ a y z))
+    (l₁ : OrderedAssocList cmp β₁) (l₂) (l₃) :
+    merge f₂ (merge f₁ l₁ l₂) l₃ = merge g₂ l₁ (merge g₁ l₂ l₃) := by
+  have hg₂ a : g₂ a none none = none := by simpa [hf₁, hf₂, hg₁] using (w a none none none).symm
+  ext
+  simp [w, hf₁, hf₂, hg₁, hg₂]
+
+/-- Associativity of `merge`. The condition `f₂ a none none = none` follows from the others;
+see `merge_assoc_left` for the version assuming it instead of `g₂ a none none = none`. -/
+theorem merge_assoc_right
+    (f₁ : α → Option β₁ → Option β₂ → Option γ₁) (f₂ : α → Option γ₁ → Option β₃ → Option ε)
+    (g₁ : α → Option β₂ → Option β₃ → Option γ₂) (g₂ : α → Option β₁ → Option γ₂ → Option ε)
+    (hf₁ : ∀ a, f₁ a none none = none) (hg₁ : ∀ a, g₁ a none none = none)
+    (hg₂ : ∀ a, g₂ a none none = none)
+    (w : ∀ a x y z, f₂ a (f₁ a x y) z = g₂ a x (g₁ a y z))
+    (l₁ : OrderedAssocList cmp β₁) (l₂) (l₃) :
+    merge f₂ (merge f₁ l₁ l₂) l₃ = merge g₂ l₁ (merge g₁ l₂ l₃) := by
+  have hf₂ a : f₂ a none none = none := by simpa [hf₁, hg₁, hg₂] using w a none none none
+  ext
+  simp [w, hf₁, hf₂, hg₁, hg₂]
+
+@[deprecated merge_assoc_left +typeChanged (since := "2026-11-10")]
 theorem merge_assoc
     (f₁ : α → Option β₁ → Option β₂ → Option γ₁) (f₂ : α → Option γ₁ → Option β₃ → Option ε)
     (g₁ : α → Option β₂ → Option β₃ → Option γ₂) (g₂ : α → Option β₁ → Option γ₂ → Option ε)
     (hf₁ : ∀ a, f₁ a none none = none) (hf₂ : ∀ a, f₂ a none none = none)
-    (hg₁ : ∀ a, g₁ a none none = none) (hg₂ : ∀ a, g₂ a none none = none)
+    (hg₁ : ∀ a, g₁ a none none = none) (_ : ∀ a, g₂ a none none = none)
     (w : ∀ a x y z, f₂ a (f₁ a x y) z = g₂ a x (g₁ a y z))
     (l₁ : OrderedAssocList cmp β₁) (l₂) (l₃) :
-    merge f₂ (merge f₁ l₁ l₂) l₃ = merge g₂ l₁ (merge g₁ l₂ l₃) := by
-  ext
-  simp [w, hf₁, hf₂, hg₁, hg₂]
+    merge f₂ (merge f₁ l₁ l₂) l₃ = merge g₂ l₁ (merge g₁ l₂ l₃) :=
+  merge_assoc_left f₁ f₂ g₁ g₂ hf₁ hf₂ hg₁ w l₁ l₂ l₃
 
 /--
 Add two `OrderedAssocList`s, taking the value from one list if the other value is missing.

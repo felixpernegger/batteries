@@ -184,13 +184,37 @@ theorem beq_iff_ne_notANumber_and_eq (a b : UnpackedFloat) :
   fun_cases UnpackedFloat.compare a b <;> simp_all [eq_comm (α := UnpackedFloat), and_comm] <;>
     rename_i s₁ s₂ <;> revert s₁ s₂ <;> decide
 
-theorem unpack_beq_unpack_iff {spec : Format} {b b' : BitVec spec.numBits}
-    (hb : spec.Valid b) (hb' : spec.Valid b') :
+theorem unpack_beq_unpack_iff_of_valid_left {spec : Format} {b b' : BitVec spec.numBits}
+    (hb : spec.Valid b) :
     (unpack spec b).beq (unpack spec b') ↔ b ≠ packedNaN spec ∧ b' ≠ packedNaN spec ∧
         (b = b' ∨ (b = packedZero spec .positive ∧ b' = packedZero spec .negative) ∨
           (b = packedZero spec .negative ∧ b' = packedZero spec .positive)) := by
   rw [beq_iff_ne_notANumber_and_eq]
-  simp [unpack_eq_notANumber_iff_of_valid, unpack_eq_zero_iff, unpack_inj_of_valid, *]
+  by_cases hb' : spec.Valid b'
+  · simp [unpack_eq_notANumber_iff_of_valid, unpack_eq_zero_iff, unpack_inj_of_valid, *]
+  · have hzero {s} : spec.Valid (packedZero spec s) := ⟨by simp [packedZero]⟩
+    simp only [unpack_of_not_valid hb', ne_eq, not_true, false_and, and_false, false_iff]
+    rintro ⟨-, -, rfl | ⟨-, rfl⟩ | ⟨-, rfl⟩⟩ <;> first | exact hb' hb | exact hb' hzero
+
+theorem unpack_beq_unpack_iff_of_valid_right {spec : Format} {b b' : BitVec spec.numBits}
+    (hb' : spec.Valid b') :
+    (unpack spec b).beq (unpack spec b') ↔ b ≠ packedNaN spec ∧ b' ≠ packedNaN spec ∧
+        (b = b' ∨ (b = packedZero spec .positive ∧ b' = packedZero spec .negative) ∨
+          (b = packedZero spec .negative ∧ b' = packedZero spec .positive)) := by
+  by_cases hb : spec.Valid b
+  · exact unpack_beq_unpack_iff_of_valid_left hb
+  · have hzero {s} : spec.Valid (packedZero spec s) := ⟨by simp [packedZero]⟩
+    rw [beq_iff_ne_notANumber_and_eq]
+    simp only [unpack_of_not_valid hb, ne_eq, not_true, false_and, false_iff]
+    rintro ⟨-, -, rfl | ⟨rfl, -⟩ | ⟨rfl, -⟩⟩ <;> first | exact hb hb' | exact hb hzero
+
+@[deprecated unpack_beq_unpack_iff_of_valid_left +typeChanged (since := "2026-11-10")]
+theorem unpack_beq_unpack_iff {spec : Format} {b b' : BitVec spec.numBits}
+    (hb : spec.Valid b) (_ : spec.Valid b') :
+    (unpack spec b).beq (unpack spec b') ↔ b ≠ packedNaN spec ∧ b' ≠ packedNaN spec ∧
+        (b = b' ∨ (b = packedZero spec .positive ∧ b' = packedZero spec .negative) ∨
+          (b = packedZero spec .negative ∧ b' = packedZero spec .positive)) :=
+  unpack_beq_unpack_iff_of_valid_left hb
 
 end Float.Model.UnpackedFloat
 
@@ -223,12 +247,12 @@ theorem Float32.isNaN_eq_decide_eq_nan {f : Float32} : isNaN f = decide (f = nan
 theorem Float.beq_iff_ne_nan_and_eq {f f' : Float} :
     f == f' ↔ f ≠ nan ∧ f' ≠ nan ∧ (f = f' ∨ (f = 0 ∧ f' = -0) ∨ (f = -0 ∧ f' = 0)) := by
   simp only [ne_eq, ← toBits_inj, ← UInt64.toBitVec_inj]
-  exact Float.Model.UnpackedFloat.unpack_beq_unpack_iff f.toModel.valid f'.toModel.valid
+  exact Float.Model.UnpackedFloat.unpack_beq_unpack_iff_of_valid_left f.toModel.valid
 
 theorem Float32.beq_iff_ne_nan_and_eq {f f' : Float32} :
     f == f' ↔ f ≠ nan ∧ f' ≠ nan ∧ (f = f' ∨ (f = 0 ∧ f' = -0) ∨ (f = -0 ∧ f' = 0)) := by
   simp only [ne_eq, ← toBits_inj, ← UInt32.toBitVec_inj]
-  exact Float.Model.UnpackedFloat.unpack_beq_unpack_iff f.toModel.valid f'.toModel.valid
+  exact Float.Model.UnpackedFloat.unpack_beq_unpack_iff_of_valid_left f.toModel.valid
 
 @[simp]
 theorem Float.nan_beq_eq_false (f : Float) : (nan == f) = false := by
