@@ -29,8 +29,8 @@ theorem maxChild_isChild [Ord α] {a : Vector α sz} (h : maxChild a i = some j)
   grind only [maxChild, = Option.isSome]
 
 theorem maxChild_ge_left [Ord α] [Std.OrientedOrd α] (a : Vector α sz) (i j : Fin sz)
-    (hmc : maxChild a i = some j) (hleft : 2 * i.val + 1 < sz) :
-    compare a[j] a[2 * i.val + 1] |>.isGE := by
+    (hmc : maxChild a i = some j) :
+    compare a[j] (a[2 * i.val + 1]'(by have := maxChild_isChild hmc; omega)) |>.isGE := by
   grind only [Std.OrientedOrd.isGE_of_isLT, Ordering.isGE, Ordering.isLT, maxChild, Fin.getElem_fin]
 
 theorem maxChild_ge_right [Ord α] [Std.OrientedOrd α] (a : Vector α sz)
@@ -415,12 +415,14 @@ theorem mem_iff_get [Ord α] {heap : BinaryHeap α} :
 
 @[simp, grind .]
 theorem max_ge_all [Ord α] [Std.TransOrd α]
-    {heap : BinaryHeap α} (hwf : WF heap) (h_in: y ∈ heap) (h_ne : heap.size > 0) :
-    compare (heap.max.get <| by simp_all [max,size]) y |>.isGE := by
+    {heap : BinaryHeap α} (hwf : WF heap) (h_in: y ∈ heap) :
+    compare (heap.max.get <| by have := Array.size_pos_of_mem h_in; simp_all [max])
+      y |>.isGE := by
+  have h_ne : heap.size > 0 := Array.size_pos_of_mem h_in
   have ⟨idx, h_sz, h_ge⟩ := Array.mem_iff_getElem.mp h_in
   subst h_ge
   simp only [max, Array.getElem?_eq_getElem h_ne, Option.get_some]
-  exact hwf.root_ge_all h_ne ⟨idx, h_sz⟩
+  exact hwf.root_ge_all ⟨idx, h_sz⟩
 
 /-- Removing the maximum element from a well-formed heap preserves well-formedness. -/
 @[simp, grind .]
@@ -552,7 +554,7 @@ private theorem toSortedArray.loop_sorted [Ord α] [Std.TransOrd α] {heap : Bin
   · have : x ∈ heap := by simp_all [mem_def, max, Array.mem_of_getElem? h]
     simp_all [List.pairwise_append]
   · have hx_ge_heap : ∀ y ∈ heap, compare x y |>.isGE := fun _ hy => by
-      simpa [h] using max_ge_all hwf hy h_pos
+      simpa [h] using max_ge_all hwf hy
     intro _ hy
     rw [Array.mem_push] at hy
     cases hy <;> simp_all [mem_of_mem_popMax]

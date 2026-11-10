@@ -190,7 +190,8 @@ public theorem toFinDigitsFixed_add [NeZero base] : toFinDigitsFixed n base (pre
 public theorem toFinDigits_zero : toFinDigits 0 base = [] := by
   rw [toFinDigits, dite_eq_left (.inl rfl)]
 
-public theorem toFinDigits_of_ne_zero (h : 2 ≤ base) [NeZero base] (hn : n ≠ 0) :
+public theorem toFinDigits_of_ne_zero (h : 2 ≤ base) (hn : n ≠ 0) :
+    haveI : NeZero base := ⟨by omega⟩
     toFinDigits n base = toFinDigits (n / base) base ++ [Fin.ofNat base n] := by
   rw [toFinDigits, dite_eq_right (by omega)]
 
@@ -205,9 +206,11 @@ public theorem toFinDigits_of_ne_zero (h : 2 ≤ base) [NeZero base] (hn : n ≠
       rw [toFinDigits_of_ne_zero h hn, ofFinDigits_append, ih _ (Nat.div_lt_self (by omega) h)]
       simp [Nat.div_add_mod']
 
-public theorem toFinDigits_eq_append (h : 2 ≤ base) [NeZero base] (hk : base ^ k ≤ n) :
+public theorem toFinDigits_eq_append (h : 2 ≤ base) (hk : base ^ k ≤ n) :
+    haveI : NeZero base := ⟨by omega⟩
     toFinDigits n base =
       toFinDigits (n / base ^ k) base ++ toFinDigitsFixed (n % base ^ k) base k := by
+  have : NeZero base := ⟨by omega⟩
   induction k generalizing n with
   | zero => simp [Nat.mod_one]
   | succ k ih =>
@@ -300,13 +303,14 @@ public theorem toFinDigits_head?_ne_zero : ∀ d ∈ (toFinDigits n base).head?,
         simp only [Option.none_or, List.head?_cons, Option.mem_def, Option.some_inj] at hd
         rw [← hd, Fin.val_ofNat, Nat.mod_eq_of_lt this]; exact hn
 
-public theorem toFinDigits_ofFinDigits (h : 2 ≤ base) {l : List (Fin base)}
+public theorem toFinDigits_ofFinDigits {l : List (Fin base)}
     (hl : ∀ d ∈ l.head?, d.val ≠ 0) : toFinDigits (ofFinDigits l) base = l := by
-  have : NeZero base := ⟨by omega⟩
   match l with
   | [] => simp [toFinDigits_zero]
   | d :: l =>
     have hd : d.val ≠ 0 := hl d rfl
+    have h : 2 ≤ base := by have := d.isLt; omega
+    have : NeZero base := ⟨by omega⟩
     have hlt := ofFinDigits_lt_pow (l := l)
     have hpos : 0 < base ^ l.length := Nat.pow_pos (by omega)
     have hdiv : (d * base ^ l.length + ofFinDigits l) / base ^ l.length = d := by

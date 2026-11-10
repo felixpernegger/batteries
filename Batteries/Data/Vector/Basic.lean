@@ -30,10 +30,10 @@ Set an element of a vector using a `USize` index and a proof that the index is w
 def uset (xs : Vector α n) (i : USize) (v : α) (h : i.toNat < n) : Vector α n :=
   ⟨xs.toArray.uset i v (xs.size_toArray.symm ▸ h), by simp⟩
 
-private theorem USize.succ_toNat_of_lt {start stop : USize} {n : Nat}
-    (h_lt : start < stop) (h_stop : stop.toNat ≤ n) (h_su : n < USize.size) :
+private theorem USize.succ_toNat_of_lt {start stop : USize} (h_lt : start < stop) :
     (start + 1).toNat = start.toNat + 1 := by
   have h_lt_nat := USize.lt_iff_toNat_lt.mp h_lt
+  have := stop.toNat_lt_size
   cases System.Platform.numBits_eq
   all_goals
     simp_all only [USize.size, USize.toNat_add, USize.reduceToNat]
@@ -52,7 +52,7 @@ where
       (h_i : i.toNat ≤ n) (acc : Vector β i.toNat) : m (Vector β (n + 1)) := do
     if h_lt : i < n_usize then
       have h_lt_nat : i.toNat < n := by rw [← h_n]; exact USize.lt_iff_toNat_lt.mp h_lt
-      have h_inc : (i + 1).toNat = i.toNat + 1 := USize.succ_toNat_of_lt h_lt (by omega) h_su
+      have h_inc : (i + 1).toNat = i.toNat + 1 := USize.succ_toNat_of_lt h_lt
       let next ← f cur (as.uget i (by omega))
       loop next (i + 1) n_usize h_n (by omega) (acc.push cur |>.cast h_inc.symm)
     else

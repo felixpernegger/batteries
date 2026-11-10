@@ -6,6 +6,7 @@ Authors: François G. Dorais, Quang Dao
 module
 
 public import Batteries.Data.Fin.Basic
+import all Init.Data.Fin.Fold
 
 public section
 
@@ -14,7 +15,7 @@ namespace Fin
 /-! ### dfoldrM -/
 
 theorem dfoldrM_loop_zero [Monad m] (f : (i : Fin n) → α i.succ → m (α i.castSucc)) (x) :
-    dfoldrM.loop n α f 0 h x = pure x := rfl
+    dfoldrM.loop n α f 0 (Nat.zero_lt_succ n) x = pure x := rfl
 
 theorem dfoldrM_loop_succ [Monad m] (f : (i : Fin n) → α i.succ → m (α i.castSucc)) (x) :
     dfoldrM.loop n α f (i+1) h x = f ⟨i, by omega⟩ x >>= dfoldrM.loop n α f i (by omega) := rfl
@@ -39,11 +40,14 @@ theorem dfoldrM_loop [Monad m] [LawfulMonad m] (f : (i : Fin (n+1)) → α i.suc
 theorem dfoldrM_succ [Monad m] [LawfulMonad m] (f : (i : Fin (n+1)) → α i.succ → m (α i.castSucc))
     (x) : dfoldrM (n+1) α f x = dfoldrM n (α ∘ succ) (f ·.succ) x >>= f 0 := dfoldrM_loop ..
 
-theorem dfoldrM_eq_foldrM [Monad m] [LawfulMonad m] (f : (i : Fin n) → α → m α) (x) :
+theorem dfoldrM_eq_foldrM [Monad m] (f : (i : Fin n) → α → m α) (x) :
     dfoldrM n (fun _ => α) f x = foldrM n f x := by
-  induction n with
-  | zero => simp only [dfoldrM_zero, foldrM_zero]
-  | succ n ih => simp only [dfoldrM_succ, foldrM_succ, Function.comp_def, ih]
+  suffices ∀ i h x, dfoldrM.loop n (fun _ => α) f i h x = foldrM.loop n f ⟨i, by omega⟩ x from
+    this ..
+  intro i h x
+  induction i generalizing x with
+  | zero => exact (foldrM_loop_zero f x).symm
+  | succ i ih => rw [dfoldrM_loop_succ, foldrM_loop_succ]; exact bind_congr fun _ => ih ..
 
 theorem dfoldr_eq_dfoldrM (f : (i : Fin n) → α i.succ → α i.castSucc) (x) :
     dfoldr n α f x = dfoldrM (m:=Id) n α f x := rfl

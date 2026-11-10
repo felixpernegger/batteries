@@ -332,6 +332,24 @@ variable [BEq α]
 
 @[simp] theorem diff_nil (l : List α) : l.diff [] = l := rfl
 
+@[simp] theorem nil_diff (l : List α) : [].diff l = [] := by
+  induction l <;> simp_all [List.diff]
+
+@[simp] theorem diff_append (l₁ l₂ l₃ : List α) : l₁.diff (l₂ ++ l₃) = (l₁.diff l₂).diff l₃ := by
+  induction l₂ generalizing l₁ with
+  | nil => rfl
+  | cons a l ih => simp only [cons_append, List.diff]; split <;> apply ih
+
+theorem diff_sublist : ∀ l₁ l₂ : List α, l₁.diff l₂ <+ l₁
+  | _, [] => .refl _
+  | l₁, a :: l₂ => by
+    rw [List.diff]
+    split
+    · exact (diff_sublist ..).trans erase_sublist
+    · exact diff_sublist ..
+
+theorem diff_subset (l₁ l₂ : List α) : l₁.diff l₂ ⊆ l₁ := (diff_sublist ..).subset
+
 variable [LawfulBEq α]
 
 @[simp] theorem diff_cons (l₁ l₂ : List α) (a : α) : l₁.diff (a :: l₂) = (l₁.erase a).diff l₂ := by
@@ -342,9 +360,6 @@ theorem diff_cons_right (l₁ l₂ : List α) (a : α) : l₁.diff (a :: l₂) =
 
 theorem diff_erase (l₁ l₂ : List α) (a : α) : (l₁.diff l₂).erase a = (l₁.erase a).diff l₂ := by
   rw [← diff_cons_right, diff_cons]
-
-@[simp] theorem nil_diff (l : List α) : [].diff l = [] := by
-  induction l <;> simp [*, erase_of_not_mem]
 
 theorem cons_diff (a : α) (l₁ l₂ : List α) :
     (a :: l₁).diff l₂ = if a ∈ l₂ then l₁.diff (l₂.erase a) else a :: l₁.diff l₂ := by
@@ -367,19 +382,6 @@ theorem diff_eq_foldl : ∀ l₁ l₂ : List α, l₁.diff l₂ = foldl List.era
   | _, [] => rfl
   | l₁, a :: l₂ => (diff_cons l₁ l₂ a).trans (diff_eq_foldl _ _)
 
-@[simp] theorem diff_append (l₁ l₂ l₃ : List α) : l₁.diff (l₂ ++ l₃) = (l₁.diff l₂).diff l₃ := by
-  simp only [diff_eq_foldl, foldl_append]
-
-theorem diff_sublist : ∀ l₁ l₂ : List α, l₁.diff l₂ <+ l₁
-  | _, [] => .refl _
-  | l₁, a :: l₂ =>
-    calc
-      l₁.diff (a :: l₂) = (l₁.erase a).diff l₂ := diff_cons ..
-      _ <+ l₁.erase a := diff_sublist ..
-      _ <+ l₁ := erase_sublist ..
-
-theorem diff_subset (l₁ l₂ : List α) : l₁.diff l₂ ⊆ l₁ := (diff_sublist ..).subset
-
 theorem mem_diff_of_mem {a : α} : ∀ {l₁ l₂ : List α}, a ∈ l₁ → a ∉ l₂ → a ∈ l₁.diff l₂
   | _, [], h₁, _ => h₁
   | l₁, b :: l₂, h₁, h₂ => by
@@ -390,15 +392,20 @@ theorem Sublist.diff_right : ∀ {l₁ l₂ l₃ : List α}, l₁ <+ l₂ → l�
   | _,  _, [], h => h
   | l₁, l₂, a :: l₃, h => by simp only [diff_cons, (h.erase _).diff_right]
 
-theorem Sublist.erase_diff_erase_sublist {a : α} :
-    ∀ {l₁ l₂ : List α}, l₁ <+ l₂ → (l₂.erase a).diff (l₁.erase a) <+ l₂.diff l₁
-  | [], _, _ => erase_sublist
-  | b :: l₁, l₂, h => by
+theorem erase_diff_erase_sublist {a : α} :
+    ∀ {l₁ l₂ : List α}, (l₂.erase a).diff (l₁.erase a) <+ l₂.diff l₁
+  | [], _ => erase_sublist
+  | b :: l₁, l₂ => by
     if heq : b = a then
       simp [heq]
     else
       simp [heq, erase_comm a]
-      exact (erase_cons_head b _ ▸ h.erase b).erase_diff_erase_sublist
+      exact erase_diff_erase_sublist
+
+@[deprecated List.erase_diff_erase_sublist +typeChanged (since := "2026-11-10")]
+theorem Sublist.erase_diff_erase_sublist {a : α} {l₁ l₂ : List α} (_ : l₁ <+ l₂) :
+    (l₂.erase a).diff (l₁.erase a) <+ l₂.diff l₁ :=
+  List.erase_diff_erase_sublist
 
 end Diff
 

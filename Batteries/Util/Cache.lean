@@ -85,7 +85,8 @@ structure DeclCache (α : Type) where mk' ::
   /-- Function for adding a declaration from the library to the cache.
   Defaults to the same behaviour as adding a declaration from the current file. -/
   addLibraryDecl : Name → ConstantInfo → α → MetaM α := addDecl
-  deriving Nonempty
+
+instance : Nonempty (DeclCache α) := ⟨⟨Classical.ofNonempty, fun _ _ => pure, fun _ _ => pure⟩⟩
 
 /--
 Creates a `DeclCache`.

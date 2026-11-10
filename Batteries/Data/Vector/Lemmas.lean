@@ -148,10 +148,10 @@ theorem isNone_finIdxOf? [BEq α] [PartialEquivBEq α] {v : Vector α n} {a : α
   simp
 
 private theorem scanlM.loop_toArray [Monad m] [LawfulMonad m] (f : β → α → m β) (as : Vector α n)
-    (h_stop : n ≤ as.toArray.size) (i : Nat) (hi : i ≤ n) (cur : β)
+    (i : Nat) (hi : i ≤ n) (cur : β)
     (acc_v : Vector β i) (acc_a : Array β) (h_acc : acc_v.toArray = acc_a) :
     Vector.toArray <$> Vector.scanlM.loop f as cur i hi acc_v =
-    Array.scanlM.loop f cur as.toArray i n h_stop acc_a := by
+    Array.scanlM.loop f cur as.toArray i n (by simp) acc_a := by
   induction h_term : n - i generalizing i cur acc_v acc_a with
   | zero =>
     unfold Vector.scanlM.loop Array.scanlM.loop
@@ -207,16 +207,14 @@ theorem toList_scanrM [Monad m] [LawfulMonad m] {f : α → β → m β} {as : V
   simp only [toArray_scanrM, Array.toList_scanrM, toList_toArray]
 
 @[simp, grind =]
-theorem scanlM_empty [Monad m] [LawfulMonad m] {f : β → α → m β} :
+theorem scanlM_empty [Monad m] {f : β → α → m β} :
     (#v[] : Vector α 0).scanlM f init = pure #v[init] := by
-  rw [← _root_.map_inj_right toArray_inj.mp, toArray_scanlM]
-  simp [Array.scanlM_empty]
+  simp [scanlM, scanlM.loop]
 
 @[simp, grind =]
-theorem scanrM_empty [Monad m] [LawfulMonad m] {f : α → β → m β} :
+theorem scanrM_empty [Monad m] {f : α → β → m β} :
     (#v[] : Vector α 0).scanrM f init = pure #v[init] := by
-  rw [← _root_.map_inj_right toArray_inj.mp, toArray_scanrM]
-  simp [Array.scanrM_empty]
+  simp [scanrM, scanrM.loop]
 
 theorem scanlM_reverse [Monad m] [LawfulMonad m] {f : β → α → m β} {as : Vector α n} :
     as.reverse.scanlM f init = Vector.reverse <$> (as.scanrM (flip f) init) := by
@@ -247,16 +245,21 @@ theorem idRun_scanrM {f : α → β → Id β} {as : Vector α n} :
   scanrM_pure
 
 @[grind =]
-theorem scanlM_map [Monad m] [LawfulMonad m] {f : α₁ → α₂} {g : β → α₂ → m β} {as : Vector α₁ n} :
+theorem scanlM_map [Monad m] {f : α₁ → α₂} {g : β → α₂ → m β} {as : Vector α₁ n} :
     (as.map f).scanlM g init = as.scanlM (g · <| f ·) init := by
-  rw [← _root_.map_inj_right toArray_inj.mp]
-  simp only [toArray_scanlM, toArray_map, Array.scanlM_map]
+  suffices ∀ cur i hi acc, scanlM.loop g (as.map f) cur i hi acc =
+      scanlM.loop (g · <| f ·) as cur i hi acc from this ..
+  intro cur i hi acc
+  fun_induction scanlM.loop (g · <| f ·) as cur i hi acc <;> rw [scanlM.loop] <;> simp_all
 
 @[grind =]
-theorem scanrM_map [Monad m] [LawfulMonad m] {f : α₁ → α₂} {g : α₂ → β → m β} {as : Vector α₁ n} :
+theorem scanrM_map [Monad m] {f : α₁ → α₂} {g : α₂ → β → m β} {as : Vector α₁ n} :
     (as.map f).scanrM g init = as.scanrM (fun a b => g (f a) b) init := by
-  rw [← _root_.map_inj_right toArray_inj.mp]
-  simp only [toArray_scanrM, toArray_map, Array.scanrM_map]
+  suffices ∀ cur i hi acc, scanrM.loop g (as.map f) cur i hi acc =
+      scanrM.loop (fun a b => g (f a) b) as cur i hi acc from this ..
+  intro cur i hi acc
+  fun_induction scanrM.loop (fun a b => g (f a) b) as cur i hi acc <;> rw [scanrM.loop] <;>
+    simp_all
 
 /-! ### scanl/scanr lemmas -/
 

@@ -59,14 +59,12 @@ theorem set_set (a : ByteArray) (i : Fin a.size) (v v' : UInt8) :
 
 /-! ### append -/
 
-theorem get_append_left {a b : ByteArray} (hlt : i < a.size)
-    (h : i < (a ++ b).size := size_append .. ▸ Nat.lt_of_lt_of_le hlt (Nat.le_add_right ..)) :
-    (a ++ b)[i] = a[i] := by
+theorem get_append_left {a b : ByteArray} (hlt : i < a.size) :
+    (a ++ b)[i]'(by simp; omega) = a[i] := by
   simp [getElem_eq_data_getElem]; exact Array.getElem_append_left hlt
 
-theorem get_append_right {a b : ByteArray} (hle : a.size ≤ i) (h : i < (a ++ b).size)
-    (h' : i - a.size < b.size := Nat.sub_lt_left_of_lt_add hle (size_append .. ▸ h)) :
-    (a ++ b)[i] = b[i - a.size] := by
+theorem get_append_right {a b : ByteArray} (hle : a.size ≤ i) (h : i < (a ++ b).size) :
+    (a ++ b)[i] = b[i - a.size]'(by simp at h; omega) := by
   simp [getElem_eq_data_getElem]; exact Array.getElem_append_right hle
 
 /-! ### extract -/

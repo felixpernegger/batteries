@@ -640,14 +640,18 @@ theorem nextn : ∀ {it}, ValidFor l r it →
     simpa using h.next.nextn _ (Nat.le_of_succ_le_succ hn)
 
 theorem prevn : ∀ {it}, ValidFor l r it →
-      ∀ n, n ≤ l.length → ValidFor (l.drop n) ((l.take n).reverse ++ r) (it.prevn n)
-  | it, h, 0, _ => by simp [h, Iterator.prevn]
-  | it, h, n+1, hn => by
+      ∀ n, ValidFor (l.drop n) ((l.take n).reverse ++ r) (it.prevn n)
+  | it, h, 0 => by simp [h, Iterator.prevn]
+  | it, h, n+1 => by
     simp only [Iterator.prevn]
-    have a::l := l
-    simpa using h.prev.prevn _ (Nat.le_of_succ_le_succ hn)
+    match l, h with
+    | [], h => simpa using h.prev_nil.prevn n
+    | _ :: _, h => simpa using h.prev.prevn n
 
 end ValidFor
+
+theorem remainingBytes_le (it : Iterator) : it.remainingBytes ≤ utf8ByteSize it.s :=
+  Nat.sub_le ..
 
 namespace Valid
 
@@ -657,10 +661,9 @@ theorem validFor : ∀ {it}, Valid it → ∃ l r, ValidFor l r it
 
 theorem _root_.String.valid_mkIterator (s) : (mkIterator s).Valid := s.validFor_mkIterator.valid
 
+@[deprecated Iterator.remainingBytes_le +typeChanged (since := "2026-11-10")]
 theorem remainingBytes_le : ∀ {it}, Valid it → it.remainingBytes ≤ utf8ByteSize it.s
-  | _, h =>
-    let ⟨l, r, h⟩ := h.validFor
-    by simp [utf8ByteSize_ofList, h.remainingBytes, h.toString, Nat.le_add_left]
+  | it, _ => it.remainingBytes_le
 
 theorem next : ∀ {it}, Valid it → it.hasNext → Valid it.next
   | _, h, hn => by
@@ -1035,6 +1038,118 @@ theorem dropWhile (p : Char → Bool) : ∀ {s}, ValidFor l m r s →
 
 end ValidFor
 
+/-- What `extract.go₂` returns is a prefix of its input whose inner positions avoid the stop. -/
+private theorem extract_go₂_prefix : ∀ (cs : List Char) (i e : String.Pos.Raw),
+    ∃ t, cs = String.Pos.Raw.extract.go₂ cs i e ++ t ∧
+      ∀ m₁ c m₂, String.Pos.Raw.extract.go₂ cs i e = m₁ ++ c :: m₂ →
+        i.byteIdx + utf8Len m₁ ≠ e.byteIdx
+  | [], i, e => ⟨[], by simp [String.Pos.Raw.extract.go₂]⟩
+  | c :: cs, i, e => by
+    by_cases h : i = e
+    · exact ⟨c :: cs, by simp [String.Pos.Raw.extract.go₂, h]⟩
+    · obtain ⟨t, ht, hm⟩ := extract_go₂_prefix cs (i + c) e
+      refine ⟨t, by simpa [String.Pos.Raw.extract.go₂, h] using ht, ?_⟩
+      intro m₁ d m₂ hm₁
+      simp only [String.Pos.Raw.extract.go₂, h, ite_false] at hm₁
+      match m₁, hm₁ with
+      | [], _ => exact fun he => h (String.Pos.Raw.ext (by simpa using he))
+      | d' :: m₁', hm₁ =>
+        simp only [List.cons_append, List.cons.injEq] at hm₁
+        have := hm m₁' d m₂ hm₁.2
+        simp only [utf8Len_cons, String.Pos.Raw.byteIdx_add_char] at this ⊢
+        rw [← hm₁.1]; omega
+
+/-- `extract.go₁` returns a sublist starting after a prefix of byte length `b`. -/
+private theorem extract_go₁_prefix : ∀ (cs : List Char) (i b e : String.Pos.Raw),
+    String.Pos.Raw.extract.go₁ cs i b e ≠ [] →
+    ∃ l t, cs = l ++ String.Pos.Raw.extract.go₁ cs i b e ++ t ∧
+      b.byteIdx = i.byteIdx + utf8Len l ∧
+      ∀ m₁ c m₂, String.Pos.Raw.extract.go₁ cs i b e = m₁ ++ c :: m₂ →
+        b.byteIdx + utf8Len m₁ ≠ e.byteIdx
+  | [], _, _, _, hne => by simp [String.Pos.Raw.extract.go₁] at hne
+  | c :: cs, i, b, e, hne => by
+    by_cases h : i = b
+    · subst h
+      obtain ⟨t, ht, hm⟩ := extract_go₂_prefix (c :: cs) i e
+      simp only [String.Pos.Raw.extract.go₁, ite_true]
+      exact ⟨[], t, by simpa using ht, by simp, hm⟩
+    · simp only [String.Pos.Raw.extract.go₁, h, ite_false] at hne ⊢
+      obtain ⟨l, t, h₁, h₂, h₃⟩ := extract_go₁_prefix cs (i + c) b e hne
+      refine ⟨c :: l, t, by simpa using h₁, ?_, h₃⟩
+      simp only [utf8Len_cons, String.Pos.Raw.byteIdx_add_char] at h₂ ⊢; omega
+
+/-- A substring with nonempty `toString` is described by a `ValidFor` substring with the same
+string and start position, and no inner position of its `toString` is the stop position. -/
+private theorem exists_validFor_of_toString (s : Substring.Raw) (hne : s.toString.toList ≠ []) :
+    ∃ l t, ValidFor l s.toString.toList t
+      ⟨s.str, s.startPos, ⟨s.startPos.byteIdx + utf8Len s.toString.toList⟩⟩ ∧
+    ∀ m₁ c m₂, s.toString.toList = m₁ ++ c :: m₂ →
+      s.startPos.byteIdx + utf8Len m₁ ≠ s.stopPos.byteIdx := by
+  obtain ⟨str, b, e⟩ := s
+  simp only [Substring.Raw.toString, String.Pos.Raw.extract] at hne ⊢
+  split at hne
+  · simp at hne
+  · rename_i hbe
+    simp only [hbe, ite_false, String.toList_ofList] at hne ⊢
+    obtain ⟨l, t, h₁, h₂, h₃⟩ := extract_go₁_prefix str.toList 0 b e hne
+    exact ⟨l, t, .of_eq _ h₁ (by simpa using h₂) (by simp [h₂]), h₃⟩
+
+theorem get_of_toList_toString_eq {s : Substring.Raw} (e : s.toString.toList = m₁ ++ c :: m₂) :
+    s.get ⟨utf8Len m₁⟩ = c := by
+  obtain ⟨l, t, hv, -⟩ := exists_validFor_of_toString s (by simp [e])
+  rw [e] at hv
+  exact hv.get
+
+theorem front_of_toList_toString_eq {s : Substring.Raw} (e : s.toString.toList = c :: m) :
+    s.front = c :=
+  get_of_toList_toString_eq (m₁ := []) e
+
+theorem next_of_toList_toString_eq {s : Substring.Raw} (e : s.toString.toList = m₁ ++ c :: m₂) :
+    s.next ⟨utf8Len m₁⟩ = ⟨utf8Len m₁ + c.utf8Size⟩ := by
+  obtain ⟨l, t, hv, hne⟩ := exists_validFor_of_toString s (by simp [e])
+  have hne := hne m₁ c m₂ e
+  rw [e] at hv
+  obtain ⟨str, b, st⟩ := s
+  have := hv.next
+  simp only [Substring.Raw.next] at this ⊢
+  have h₁ : ¬ (⟨utf8Len m₁⟩ : String.Pos.Raw).offsetBy b = st := by
+    intro h; apply hne; rw [← h]; simp [String.Pos.Raw.offsetBy]
+  have h₂ : ¬ (⟨utf8Len m₁⟩ : String.Pos.Raw).offsetBy b =
+      ⟨b.byteIdx + utf8Len (m₁ ++ c :: m₂)⟩ := by
+    intro h; have := congrArg String.Pos.Raw.byteIdx h
+    simp [String.Pos.Raw.offsetBy] at this; have := c.utf8Size_pos; omega
+  rw [if_neg h₂] at this; rwa [if_neg h₁]
+
+theorem prev_of_toList_toString_eq {s : Substring.Raw} (e : s.toString.toList = m₁ ++ c :: m₂) :
+    s.prev ⟨utf8Len m₁ + c.utf8Size⟩ = ⟨utf8Len m₁⟩ := by
+  obtain ⟨l, t, hv, -⟩ := exists_validFor_of_toString s (by simp [e])
+  rw [e] at hv
+  exact hv.prev
+
+theorem prevn_of_toList_toString_eq {s : Substring.Raw}
+    (e : s.toString.toList = m₁.reverse ++ m₂) (n : Nat) :
+    s.prevn n ⟨utf8Len m₁⟩ = ⟨utf8Len (m₁.drop n)⟩ := by
+  by_cases hne : s.toString.toList = []
+  · rw [hne] at e
+    obtain ⟨h₁, -⟩ := List.append_eq_nil_iff.1 e.symm
+    obtain rfl : m₁ = [] := List.reverse_eq_nil_iff.1 h₁
+    induction n with
+    | zero => rfl
+    | succ n ih =>
+      simp only [Substring.Raw.prevn] at ih ⊢
+      rw [show s.prev ⟨utf8Len []⟩ = ⟨utf8Len []⟩ by
+        simp [Substring.Raw.prev, String.Pos.Raw.offsetBy]]
+      simp
+  · obtain ⟨l, t, hv, -⟩ := exists_validFor_of_toString s hne
+    rw [e] at hv
+    obtain ⟨str, b, st⟩ := s
+    have key : ∀ n p, (⟨str, b, st⟩ : Substring.Raw).prevn n p =
+        (⟨str, b, ⟨b.byteIdx + utf8Len (m₁.reverse ++ m₂)⟩⟩ : Substring.Raw).prevn n p := by
+      intro n; induction n with
+      | zero => intro; rfl
+      | succ n ih => intro; exact ih _
+    rw [key]; exact hv.prevn n
+
 namespace Valid
 
 theorem validFor : ∀ {s}, Valid s → ∃ l m r, ValidFor l m r s
@@ -1066,25 +1181,22 @@ theorem bsize : ∀ {s}, Valid s → s.bsize = utf8Len s.toString.toList
 theorem isEmpty : ∀ {s}, Valid s → (s.isEmpty ↔ s.toString = "")
   | _, h => let ⟨l, m, r, h⟩ := h.validFor; by simp [h.isEmpty, h.toString, String.ext_iff]
 
+@[deprecated get_of_toList_toString_eq +typeChanged (since := "2026-11-10")]
 theorem get : ∀ {s}, Valid s → s.toString.toList = m₁ ++ c :: m₂ → s.get ⟨utf8Len m₁⟩ = c
-  | _, h, e => by
-    let ⟨l, m, r, h⟩ := h.validFor
-    simp only [h.toString, String.toList_ofList] at e; subst e; simp [h.get]
+  | _, _, e => get_of_toList_toString_eq e
 
+@[deprecated next_of_toList_toString_eq +typeChanged (since := "2026-11-10")]
 theorem next : ∀ {s}, Valid s → s.toString.toList = m₁ ++ c :: m₂ →
     s.next ⟨utf8Len m₁⟩ = ⟨utf8Len m₁ + c.utf8Size⟩
-  | _, h, e => by
-    let ⟨l, m, r, h⟩ := h.validFor
-    simp only [h.toString, String.toList_ofList] at e; subst e; simp [h.next]
+  | _, _, e => next_of_toList_toString_eq e
 
 theorem next_stop : ∀ {s}, Valid s → s.next ⟨s.bsize⟩ = ⟨s.bsize⟩
   | _, h => let ⟨l, m, r, h⟩ := h.validFor; by simp [h.bsize, h.next_stop]
 
+@[deprecated prev_of_toList_toString_eq +typeChanged (since := "2026-11-10")]
 theorem prev : ∀ {s}, Valid s → s.toString.toList = m₁ ++ c :: m₂ →
     s.prev ⟨utf8Len m₁ + c.utf8Size⟩ = ⟨utf8Len m₁⟩
-  | _, h, e => by
-    let ⟨l, m, r, h⟩ := h.validFor
-    simp only [h.toString, String.toList_ofList] at e; subst e; simp [h.prev]
+  | _, _, e => prev_of_toList_toString_eq e
 
 theorem nextn_stop : ∀ {s}, Valid s → ∀ n, s.nextn n ⟨s.bsize⟩ = ⟨s.bsize⟩
   | _, h, n => let ⟨l, m, r, h⟩ := h.validFor; by simp [h.bsize, h.nextn_stop]
@@ -1095,14 +1207,14 @@ theorem nextn : ∀ {s}, Valid s → s.toString.toList = m₁ ++ m₂ →
     let ⟨l, m, r, h⟩ := h.validFor
     simp only [h.toString, String.toList_ofList] at e; subst e; simp [h.nextn]
 
+@[deprecated prevn_of_toList_toString_eq +typeChanged (since := "2026-11-10")]
 theorem prevn : ∀ {s}, Valid s → s.toString.toList = m₁.reverse ++ m₂ →
     ∀ n, s.prevn n ⟨utf8Len m₁⟩ = ⟨utf8Len (m₁.drop n)⟩
-  | _, h, e => by
-    let ⟨l, m, r, h⟩ := h.validFor
-    simp only [h.toString, String.toList_ofList] at e; subst e; simp [h.prevn]
+  | _, _, e => prevn_of_toList_toString_eq e
 
+@[deprecated front_of_toList_toString_eq +typeChanged (since := "2026-11-10")]
 theorem front : ∀ {s}, Valid s → s.toString.toList = c :: m → s.front = c
-  | _, h => h.get (m₁ := [])
+  | _, _, e => front_of_toList_toString_eq e
 
 theorem drop : ∀ {s}, Valid s → ∀ n, Valid (s.drop n)
   | _, h, _ => let ⟨_, _, _, h⟩ := h.validFor; (h.drop _).valid
