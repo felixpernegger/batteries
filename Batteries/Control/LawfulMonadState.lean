@@ -205,7 +205,7 @@ instance {σ ε} : LawfulMonadStateOf σ (EStateM ε σ) where
 
 /-- If the underlying monad `m` has a lawful state instance, then the induced state instance on
 `ReaderT ρ m` will also be lawful. -/
-instance {m σ ρ} [Monad m] [LawfulMonad m] [MonadStateOf σ m] [LawfulMonadStateOf σ m] :
+instance {m σ ρ} [Monad m] [MonadStateOf σ m] [LawfulMonadStateOf σ m] :
     LawfulMonadStateOf σ (ReaderT ρ m) where
   modifyGet_eq f := ReaderT.ext fun ctx => by
     simp [← liftM_modifyGet, LawfulMonadStateOf.modifyGet_eq, ← liftM_get]
@@ -220,6 +220,14 @@ instance {m σ ρ} [Monad m] [LawfulMonad m] [MonadStateOf σ m] [LawfulMonadSta
   set_bind_set s s' := ReaderT.ext fun ctx => by
     simp [← liftM_set]
 
-instance {m ω σ} [Monad m] [LawfulMonad m] [MonadStateOf σ m] [LawfulMonadStateOf σ m] :
+@[deprecated instReaderT +typeChanged (since := "2026-11-10")]
+theorem instReaderTOfLawfulMonad {m σ ρ} [Monad m] [LawfulMonad m] [MonadStateOf σ m]
+    [LawfulMonadStateOf σ m] : LawfulMonadStateOf σ (ReaderT ρ m) := instReaderT
+
+instance {m ω σ} [Monad m] [MonadStateOf σ m] [LawfulMonadStateOf σ m] :
     LawfulMonadStateOf σ (StateRefT' ω σ m) :=
   inferInstanceAs (LawfulMonadStateOf σ (ReaderT (ST.Ref ω σ) m))
+
+@[deprecated instStateRefT' +typeChanged (since := "2026-11-10")]
+theorem instStateRefT'OfLawfulMonad {m ω σ} [Monad m] [LawfulMonad m] [MonadStateOf σ m]
+    [LawfulMonadStateOf σ m] : LawfulMonadStateOf σ (StateRefT' ω σ m) := instStateRefT'

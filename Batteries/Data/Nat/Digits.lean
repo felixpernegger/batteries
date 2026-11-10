@@ -300,13 +300,14 @@ public theorem toFinDigits_head?_ne_zero : ∀ d ∈ (toFinDigits n base).head?,
         simp only [Option.none_or, List.head?_cons, Option.mem_def, Option.some_inj] at hd
         rw [← hd, Fin.val_ofNat, Nat.mod_eq_of_lt this]; exact hn
 
-public theorem toFinDigits_ofFinDigits (h : 2 ≤ base) {l : List (Fin base)}
+public theorem toFinDigits_ofFinDigits {l : List (Fin base)}
     (hl : ∀ d ∈ l.head?, d.val ≠ 0) : toFinDigits (ofFinDigits l) base = l := by
-  have : NeZero base := ⟨by omega⟩
   match l with
   | [] => simp [toFinDigits_zero]
   | d :: l =>
     have hd : d.val ≠ 0 := hl d rfl
+    have h : 2 ≤ base := by have := d.isLt; omega
+    have : NeZero base := ⟨by omega⟩
     have hlt := ofFinDigits_lt_pow (l := l)
     have hpos : 0 < base ^ l.length := Nat.pow_pos (by omega)
     have hdiv : (d * base ^ l.length + ofFinDigits l) / base ^ l.length = d := by

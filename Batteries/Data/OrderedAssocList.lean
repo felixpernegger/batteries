@@ -346,6 +346,20 @@ def orderedMerge (cmp : α → α → Ordering) (f : α → Option β → Option
       | none => orderedMerge cmp f (.cons a₁ b t₁) t₂
 termination_by l₁ l₂ => l₁.length + l₂.length
 
+/-- `orderedMerge` never evaluates `f a none none`. -/
+private theorem orderedMerge_congr {cmp : α → α → Ordering}
+    {f f' : α → Option β → Option γ → Option δ}
+    (hf : ∀ a x y, (x.isSome || y.isSome) = true → f a x y = f' a x y) :
+    ∀ l₁ l₂, orderedMerge cmp f l₁ l₂ = orderedMerge cmp f' l₁ l₂
+  | .nil, .nil => by rw [orderedMerge, orderedMerge]
+  | .nil, .cons .. | .cons .., .nil => by
+    rw [orderedMerge, orderedMerge]; congr 1; funext; exact hf _ _ _ rfl
+  | .cons a₁ b t₁, .cons a₂ g t₂ => by
+    rw [orderedMerge, orderedMerge, hf a₁ (some b) none rfl, hf a₁ (some b) (some g) rfl,
+      hf a₂ none (some g) rfl, orderedMerge_congr hf t₁ (.cons a₂ g t₂),
+      orderedMerge_congr hf t₁ t₂, orderedMerge_congr hf (.cons a₁ b t₁) t₂]
+termination_by l₁ l₂ => l₁.length + l₂.length
+
 theorem ltHeadKey_orderedMerge [TransCmp cmp]
     (h₁ : LTHeadKey cmp a l₁) (h₂ : LTHeadKey cmp a l₂)
     (w₁ : KeysOrdered cmp l₁) (w₂ : KeysOrdered cmp l₂) :
@@ -378,7 +392,7 @@ theorem ltHeadKey_orderedMerge [TransCmp cmp]
       · exact h₂
       · exact ltHeadKey_orderedMerge h₁ (ltHeadKey_of_cons h₂ w₂) w₁ w₂.tail
 
-theorem KeysOrdered.orderedMerge [LawfulEqCmp cmp] [TransCmp cmp]
+theorem KeysOrdered.orderedMerge [TransCmp cmp]
     (h₁ : KeysOrdered cmp l₁) (h₂ : KeysOrdered cmp l₂) :
     KeysOrdered cmp (AssocList.orderedMerge cmp f l₁ l₂) := by
   match l₁, l₂ with
@@ -403,9 +417,8 @@ theorem KeysOrdered.orderedMerge [LawfulEqCmp cmp] [TransCmp cmp]
       | some d =>
         dsimp
         apply KeysOrdered.cons
-        · rcases (LawfulEqCmp.eq_of_compare h) with rfl
-          exact ltHeadKey_orderedMerge h₁.ltHeadKey
-            h₂.ltHeadKey h₁.tail h₂.tail
+        · exact ltHeadKey_orderedMerge h₁.ltHeadKey
+            (ltHeadKey_of_le (by simp [h]) h₂.ltHeadKey) h₁.tail h₂.tail
         · exact h₁.tail.orderedMerge h₂.tail
       | none => exact h₁.tail.orderedMerge h₂.tail
     | .gt => match (f a₂ none (some g)) with
@@ -658,8 +671,8 @@ def tail (l : OrderedAssocList cmp β) : OrderedAssocList cmp β :=
   | ⟨.nil, _⟩ => l
   | ⟨.cons _ _ t, h⟩ => ⟨t, h.tail⟩
 
-@[simp] theorem toAssocList_tail_mk_nil {h} :
-    (tail (⟨.nil, h⟩ : OrderedAssocList cmp β)).toAssocList = .nil := rfl
+@[simp] theorem toAssocList_tail_mk_nil :
+    (tail (⟨.nil, trivial⟩ : OrderedAssocList cmp β)).toAssocList = .nil := rfl
 @[simp] theorem toAssocList_tail_mk_cons {h} :
     (tail (⟨.cons a b t, h⟩ : OrderedAssocList cmp β)).toAssocList = t := rfl
 
@@ -685,7 +698,8 @@ instance : GetElem? (OrderedAssocList cmp β) α β (fun l a => l.contains a) wh
   getElem l a h := (l.find? a).get h
 
 @[simp] theorem getElem?_nil {x : α} : (nil : OrderedAssocList cmp β)[x]? = none := rfl
-@[simp] theorem getElem?_mk_nil {x : α} : (⟨.nil, h⟩ : OrderedAssocList cmp β)[x]? = none := rfl
+@[simp] theorem getElem?_mk_nil {x : α} :
+    (⟨.nil, trivial⟩ : OrderedAssocList cmp β)[x]? = none := rfl
 
 theorem contains_eq_isSome_getElem? {l : OrderedAssocList cmp β} :
     l.contains a = l[a]?.isSome := rfl
@@ -789,7 +803,7 @@ def insert (l : OrderedAssocList cmp β) (a : α) (b : β) : OrderedAssocList cm
     (insert l a b).toAssocList = l.toAssocList.orderedInsert cmp a b := rfl
 
 @[simp] theorem insert_mk_nil :
-    insert (⟨.nil, h⟩ : OrderedAssocList cmp β) a b =
+    insert (⟨.nil, trivial⟩ : OrderedAssocList cmp β) a b =
       ⟨.cons a b .nil, AssocList.keysOrdered_cons_nil⟩ := rfl
 
 @[simp] theorem insert_mk_cons :
@@ -871,7 +885,7 @@ end filterMapVal
 
 section merge
 
-variable [LawfulEqCmp cmp] [TransCmp cmp]
+variable [TransCmp cmp]
 
 /--
 Merge two `OrderedAssocList`s using a function `α → Option β → Option γ → Option δ`,
@@ -892,13 +906,13 @@ def merge (f : α → Option β → Option γ → Option δ)
   simp [AssocList.orderedMerge]
 
 @[simp] theorem merge_mk_nil_mk_cons {f : α → Option β → Option γ → Option δ} :
-    merge f (⟨.nil, h⟩ : OrderedAssocList cmp β) ⟨.cons x' y' t', h'⟩ =
-      filterMapVal (fun a g => f a none (some g)) ⟨.cons x' y' t', h'⟩ := by
+    merge f (⟨.nil, trivial⟩ : OrderedAssocList cmp β) ⟨.cons x' y' t', h⟩ =
+      filterMapVal (fun a g => f a none (some g)) ⟨.cons x' y' t', h⟩ := by
   simp [merge, AssocList.orderedMerge]
   rfl
 
 @[simp] theorem merge_mk_cons_mk_nil {f : α → Option β → Option γ → Option δ} :
-    merge f ⟨.cons x y t, h⟩ (⟨.nil, h'⟩ : OrderedAssocList cmp γ) =
+    merge f ⟨.cons x y t, h⟩ (⟨.nil, trivial⟩ : OrderedAssocList cmp γ) =
       filterMapVal (fun a b => f a (some b) none) ⟨.cons x y t, h⟩ := by
   simp [merge, AssocList.orderedMerge]
   rfl
@@ -947,6 +961,8 @@ private theorem merge_mk_cons_mk_cons {f : α → Option β → Option γ → Op
             simp only [toAssocList_merge]
             simp only [← p]
             exact (merge f _ _).keysOrdered⟩ := by grind +locals
+
+variable [LawfulEqCmp cmp]
 
 @[simp] theorem getElem?_merge {f : α → Option β → Option γ → Option δ}
     (hf : f a none none = none) {l₁ : OrderedAssocList cmp β} {l₂} :
@@ -1019,11 +1035,16 @@ private theorem merge_mk_cons_mk_cons {f : α → Option β → Option γ → Op
 
 theorem merge_comm
     (f : α → Option β → Option γ → Option δ) (g : α → Option γ → Option β → Option δ)
-    (hg : ∀ a, g a none none = none)
     (w : ∀ a x y, f a x y = g a y x)
     (l₁ : OrderedAssocList cmp β) (l₂) : merge f l₁ l₂ = merge g l₂ l₁ := by
+  let g' a y x := if (y.isSome || x.isSome) then g a y x else none
+  have e₁ : merge f l₁ l₂ = merge (fun a x y => g' a y x) l₁ l₂ :=
+    ext_toAssocList <| AssocList.orderedMerge_congr (by simp +contextual [g', w, Bool.or_comm]) ..
+  have e₂ : merge g l₂ l₁ = merge g' l₂ l₁ :=
+    ext_toAssocList <| AssocList.orderedMerge_congr (by simp +contextual [g']) ..
+  rw [e₁, e₂]
   ext
-  simp [w, hg]
+  simp [g']
 
 theorem merge_assoc
     (f₁ : α → Option β₁ → Option β₂ → Option γ₁) (f₂ : α → Option γ₁ → Option β₃ → Option ε)

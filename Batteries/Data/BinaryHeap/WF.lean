@@ -147,9 +147,9 @@ theorem TopDown.children_and_below [Ord α] {a : Vector α sz} (htd : WF.TopDown
 
 /-- A node dominates all descendants in its subtree in a well-formed heap. -/
 theorem parent_ge_subtree [Ord α] [Std.TransOrd α]
-    {a : Vector α sz} {hk : k < sz} {hj : j < sz} (hwf_at : WF.Children a ⟨j, hj⟩)
-    (hwf_below : WF.Below a j) (hsub : InSubtree j k) :
-    (compare a[j] a[k]).isGE := by
+    {a : Vector α sz} {hk : k < sz} (hsub : InSubtree j k)
+    (hwf_at : WF.Children a ⟨j, Nat.lt_of_le_of_lt hsub.le hk⟩) (hwf_below : WF.Below a j) :
+    (compare (a[j]'(Nat.lt_of_le_of_lt hsub.le hk)) a[k]).isGE := by
   induction hsub
   case refl => simp
   case left k _ _ | right k _ _ =>
@@ -169,7 +169,7 @@ theorem ge_subtree_of_modify [Ord α] [Std.TransOrd α] {a b : Vector α sz} {j 
   · simp_all
   · rw [hunchanged m hsub hm_eq]
     apply Std.TransOrd.isGE_trans hge
-    exact parent_ge_subtree hwf_at hwf_below hsub
+    exact parent_ge_subtree hsub hwf_at hwf_below
 
 /-- Parent dominates all descendants after setting a smaller value -/
 theorem TopDown.parent_ge_subtree_of_set [Ord α] [Std.TransOrd α] {v : Vector α sz} {i : Fin sz}
@@ -203,10 +203,10 @@ theorem swap_preserves_ge_subtree [Ord α] [Std.TransOrd α]
 
 /-- The root element is greater than or equal to all heap elements. -/
 theorem TopDown.root_ge_all [Ord α] [Std.TransOrd α]
-    {a : Vector α sz} (hwf : WF.TopDown a) (hne : 0 < sz) (k : Fin sz) :
-    (compare a[0] a[k]).isGE :=
-  have ⟨hwf_at, hwf_below⟩ := hwf.children_and_below ⟨0, hne⟩
-  parent_ge_subtree hwf_at hwf_below (InSubtree.mem_of_zero k.val)
+    {a : Vector α sz} (hwf : WF.TopDown a) (k : Fin sz) :
+    (compare (a[0]'k.pos) a[k]).isGE :=
+  have ⟨hwf_at, hwf_below⟩ := hwf.children_and_below ⟨0, k.pos⟩
+  parent_ge_subtree (InSubtree.mem_of_zero k.val) hwf_at hwf_below
 
 /-- "Dual" correctness property to `WF.Children`. A parent should be >= current node.
     Used when verifying heapifyUp -/

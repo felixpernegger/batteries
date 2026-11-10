@@ -148,10 +148,10 @@ theorem isNone_finIdxOf? [BEq α] [PartialEquivBEq α] {v : Vector α n} {a : α
   simp
 
 private theorem scanlM.loop_toArray [Monad m] [LawfulMonad m] (f : β → α → m β) (as : Vector α n)
-    (h_stop : n ≤ as.toArray.size) (i : Nat) (hi : i ≤ n) (cur : β)
+    (i : Nat) (hi : i ≤ n) (cur : β)
     (acc_v : Vector β i) (acc_a : Array β) (h_acc : acc_v.toArray = acc_a) :
     Vector.toArray <$> Vector.scanlM.loop f as cur i hi acc_v =
-    Array.scanlM.loop f cur as.toArray i n h_stop acc_a := by
+    Array.scanlM.loop f cur as.toArray i n (by simp) acc_a := by
   induction h_term : n - i generalizing i cur acc_v acc_a with
   | zero =>
     unfold Vector.scanlM.loop Array.scanlM.loop

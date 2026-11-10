@@ -640,14 +640,18 @@ theorem nextn : ∀ {it}, ValidFor l r it →
     simpa using h.next.nextn _ (Nat.le_of_succ_le_succ hn)
 
 theorem prevn : ∀ {it}, ValidFor l r it →
-      ∀ n, n ≤ l.length → ValidFor (l.drop n) ((l.take n).reverse ++ r) (it.prevn n)
-  | it, h, 0, _ => by simp [h, Iterator.prevn]
-  | it, h, n+1, hn => by
+      ∀ n, ValidFor (l.drop n) ((l.take n).reverse ++ r) (it.prevn n)
+  | it, h, 0 => by simp [h, Iterator.prevn]
+  | it, h, n+1 => by
     simp only [Iterator.prevn]
-    have a::l := l
-    simpa using h.prev.prevn _ (Nat.le_of_succ_le_succ hn)
+    match l, h with
+    | [], h => simpa using h.prev_nil.prevn n
+    | _ :: _, h => simpa using h.prev.prevn n
 
 end ValidFor
+
+theorem remainingBytes_le (it : Iterator) : it.remainingBytes ≤ utf8ByteSize it.s :=
+  Nat.sub_le ..
 
 namespace Valid
 
@@ -657,10 +661,9 @@ theorem validFor : ∀ {it}, Valid it → ∃ l r, ValidFor l r it
 
 theorem _root_.String.valid_mkIterator (s) : (mkIterator s).Valid := s.validFor_mkIterator.valid
 
+@[deprecated Iterator.remainingBytes_le +typeChanged (since := "2026-11-10")]
 theorem remainingBytes_le : ∀ {it}, Valid it → it.remainingBytes ≤ utf8ByteSize it.s
-  | _, h =>
-    let ⟨l, r, h⟩ := h.validFor
-    by simp [utf8ByteSize_ofList, h.remainingBytes, h.toString, Nat.le_add_left]
+  | it, _ => it.remainingBytes_le
 
 theorem next : ∀ {it}, Valid it → it.hasNext → Valid it.next
   | _, h, hn => by

@@ -152,9 +152,25 @@ theorem unpack_eq_notANumber_iff_of_valid {spec : Format} {b : BitVec spec.numBi
     (hvalid : spec.Valid b) : unpack spec b = notANumber ↔ b = packedNaN spec := by
   rw [← @unpack_packedNaN spec, unpack_inj_of_valid hvalid ⟨fun _ _ => rfl⟩]
 
+/-- An invalid bit pattern is a non-canonical NaN. -/
+private theorem unpack_of_not_valid {spec : Format} {b : BitVec spec.numBits}
+    (h : ¬ spec.Valid b) : unpack spec b = notANumber := by
+  have : unpackExponent b = -1#_ ∧ unpackMantissa b ≠ 0#_ :=
+    Classical.byContradiction fun hc => h ⟨fun h₁ h₂ => (hc ⟨h₁, h₂⟩).elim⟩
+  simp [unpack, this]
+
+theorem unpack_eq_zero_iff {spec : Format} {sign : Sign} {b : BitVec spec.numBits} :
+    unpack spec b = zero sign ↔ b = packedZero spec sign := by
+  have hzero : spec.Valid (packedZero spec sign) := ⟨by simp [packedZero]⟩
+  by_cases hvalid : spec.Valid b
+  · rw [← @unpack_packedZero spec, unpack_inj_of_valid hvalid hzero]
+  · rw [unpack_of_not_valid hvalid]
+    exact ⟨nofun, fun h => (hvalid (h ▸ hzero)).elim⟩
+
+@[deprecated unpack_eq_zero_iff +typeChanged (since := "2026-11-10")]
 theorem unpack_eq_zero_iff_of_valid {spec : Format} {sign : Sign} {b : BitVec spec.numBits}
-    (hvalid : spec.Valid b) : unpack spec b = zero sign ↔ b = packedZero spec sign := by
-  rw [← @unpack_packedZero spec, unpack_inj_of_valid hvalid ⟨by simp [packedZero]⟩]
+    (_ : spec.Valid b) : unpack spec b = zero sign ↔ b = packedZero spec sign :=
+  unpack_eq_zero_iff
 
 theorem isNaN_unpack_iff_of_valid {spec : Format} {b : BitVec spec.numBits}
     (hvalid : spec.Valid b) : (unpack spec b).isNaN ↔ b = packedNaN spec := by
@@ -174,7 +190,7 @@ theorem unpack_beq_unpack_iff {spec : Format} {b b' : BitVec spec.numBits}
         (b = b' ∨ (b = packedZero spec .positive ∧ b' = packedZero spec .negative) ∨
           (b = packedZero spec .negative ∧ b' = packedZero spec .positive)) := by
   rw [beq_iff_ne_notANumber_and_eq]
-  simp [unpack_eq_notANumber_iff_of_valid, unpack_eq_zero_iff_of_valid, unpack_inj_of_valid, *]
+  simp [unpack_eq_notANumber_iff_of_valid, unpack_eq_zero_iff, unpack_inj_of_valid, *]
 
 end Float.Model.UnpackedFloat
 
