@@ -209,12 +209,12 @@ theorem toList_scanrM [Monad m] [LawfulMonad m] {f : α → β → m β} {as : V
 @[simp, grind =]
 theorem scanlM_empty [Monad m] {f : β → α → m β} :
     (#v[] : Vector α 0).scanlM f init = pure #v[init] := by
-  rw [scanlM, scanlM.loop]; rfl
+  simp [scanlM, scanlM.loop]
 
 @[simp, grind =]
 theorem scanrM_empty [Monad m] {f : α → β → m β} :
     (#v[] : Vector α 0).scanrM f init = pure #v[init] := by
-  rw [scanrM, scanrM.loop]; rfl
+  simp [scanrM, scanrM.loop]
 
 theorem scanlM_reverse [Monad m] [LawfulMonad m] {f : β → α → m β} {as : Vector α n} :
     as.reverse.scanlM f init = Vector.reverse <$> (as.scanrM (flip f) init) := by
@@ -247,35 +247,19 @@ theorem idRun_scanrM {f : α → β → Id β} {as : Vector α n} :
 @[grind =]
 theorem scanlM_map [Monad m] {f : α₁ → α₂} {g : β → α₂ → m β} {as : Vector α₁ n} :
     (as.map f).scanlM g init = as.scanlM (g · <| f ·) init := by
-  have key : ∀ k i (hi : i ≤ n) (acc : Vector β i) cur, n - i = k →
-      scanlM.loop g (as.map f) cur i hi acc = scanlM.loop (g · <| f ·) as cur i hi acc := by
-    intro k
-    induction k with
-    | zero =>
-      intro i hi acc cur hk
-      rw [scanlM.loop, scanlM.loop]; simp [show ¬ i < n by omega]
-    | succ k ih =>
-      intro i hi acc cur hk
-      rw [scanlM.loop, scanlM.loop]
-      simp only [show i < n by omega, dite_true, getElem_map]
-      congr 1; funext x; exact ih _ _ _ _ (by omega)
-  exact key _ 0 _ _ _ rfl
+  suffices ∀ cur i hi acc, scanlM.loop g (as.map f) cur i hi acc =
+      scanlM.loop (g · <| f ·) as cur i hi acc from this ..
+  intro cur i hi acc
+  fun_induction scanlM.loop (g · <| f ·) as cur i hi acc <;> rw [scanlM.loop] <;> simp_all
 
 @[grind =]
 theorem scanrM_map [Monad m] {f : α₁ → α₂} {g : α₂ → β → m β} {as : Vector α₁ n} :
     (as.map f).scanrM g init = as.scanrM (fun a b => g (f a) b) init := by
-  have key : ∀ i (hi : i ≤ n) (acc : Vector β (n - i)) cur,
-      scanrM.loop g (as.map f) cur i hi acc =
-        scanrM.loop (fun a b => g (f a) b) as cur i hi acc := by
-    intro i
-    induction i with
-    | zero => intro hi acc cur; rw [scanrM.loop, scanrM.loop]; simp
-    | succ i ih =>
-      intro hi acc cur
-      rw [scanrM.loop, scanrM.loop]
-      simp only [show 0 < i + 1 by omega, dite_true, getElem_map]
-      congr 1; funext x; exact ih _ _ _
-  exact key _ _ _ _
+  suffices ∀ cur i hi acc, scanrM.loop g (as.map f) cur i hi acc =
+      scanrM.loop (fun a b => g (f a) b) as cur i hi acc from this ..
+  intro cur i hi acc
+  fun_induction scanrM.loop (fun a b => g (f a) b) as cur i hi acc <;> rw [scanrM.loop] <;>
+    simp_all
 
 /-! ### scanl/scanr lemmas -/
 

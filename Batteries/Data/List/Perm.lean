@@ -287,9 +287,7 @@ theorem Perm.union_left [BEq α] (l : List α) (h : t₁ ~ t₂) : l ∪ t₁ ~ 
   | nil => exact h
   | cons a _ ih =>
     simp only [cons_union, List.insert, show elem a _ = elem a _ from ih.contains_eq]
-    split
-    · exact ih
-    · exact ih.cons a
+    split <;> simp [ih]
 
 theorem Perm.union [BEq α] [LawfulBEq α] {l₁ l₂ t₁ t₂ : List α} (p₁ : l₁ ~ l₂) (p₂ : t₁ ~ t₂) :
     l₁ ∪ t₁ ~ l₂ ∪ t₂ :=

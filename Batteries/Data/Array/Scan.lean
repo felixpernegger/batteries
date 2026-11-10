@@ -84,50 +84,30 @@ theorem toList_scanrM [Monad m] [LawfulMonad m] {f : α → β → m β} {as : A
 
 theorem scanlM_extract [Monad m] {f : β → α → m β} {as : Array α} :
     (as.extract start stop).scanlM f init = as.scanlM f init start stop := by
-  have hsz := size_extract (xs := as) (start := start) (stop := stop)
-  have key : ∀ k i (h₁ : (as.extract start stop).size ≤ (as.extract start stop).size)
-      (h₂ : min stop as.size ≤ as.size) acc cur, (as.extract start stop).size - i = k →
-      scanlM.loop f cur (as.extract start stop) i (as.extract start stop).size h₁ acc =
-        scanlM.loop f cur as (start + i) (min stop as.size) h₂ acc := by
-    intro k
-    induction k with
-    | zero =>
-      intro i h₁ h₂ acc cur hk
-      rw [scanlM.loop, scanlM.loop, dite_eq_right (by omega), dite_eq_right (by omega)]
-    | succ k ih =>
-      intro i h₁ h₂ acc cur hk
-      rw [scanlM.loop, scanlM.loop]
-      simp only [show i < (as.extract start stop).size by omega,
-        show start + i < min stop as.size by omega, dite_true, getElem_extract]
-      congr 1; funext x; rw [ih _ _ _ _ _ (by omega)]; rfl
-  unfold scanlM
-  simp only [Nat.zero_min, Nat.min_self]
   by_cases hs : start ≤ as.size
-  · rw [Nat.min_eq_left hs]; exact key _ 0 _ _ _ _ rfl
-  · rw [scanlM.loop, scanlM.loop, dite_eq_right (by omega), dite_eq_right (by omega)]
+  · suffices ∀ i h₁ h acc cur,
+        scanlM.loop f cur (as.extract start stop) i (min stop as.size - start) h₁ acc =
+          scanlM.loop f cur as (start + i) (min stop as.size) h acc by
+      simpa [scanlM, Nat.min_eq_left hs] using this 0 (by simp) _ #[] init
+    intro i h₁ h acc cur
+    fun_induction scanlM.loop f cur (as.extract start stop) i _ h₁ acc <;>
+      rw [scanlM.loop] <;> split <;> simp_all [Nat.add_assoc] <;> omega
+  · rw [scanlM, scanlM, scanlM.loop, scanlM.loop, dite_eq_right (by simp; omega),
+      dite_eq_right (by omega)]
 
 theorem scanrM_extract [Monad m] {f : α → β → m β} {as : Array α} :
     (as.extract stop start).scanrM f init = as.scanrM f init start stop := by
-  have hsz := size_extract (xs := as) (start := stop) (stop := start)
-  have key : ∀ i (h₁ : i ≤ (as.extract stop start).size) (h₂ : stop + i ≤ as.size) acc cur,
-      scanrM.loop f cur (as.extract stop start) i 0 h₁ acc =
-        scanrM.loop f cur as (stop + i) stop h₂ acc := by
-    intro i
-    induction i with
-    | zero =>
-      intro h₁ h₂ acc cur
-      rw [scanrM.loop, scanrM.loop, dite_eq_right (by omega), dite_eq_right (by omega)]
-    | succ i ih =>
-      intro h₁ h₂ acc cur
-      rw [scanrM.loop, scanrM.loop, dite_eq_left (by omega), dite_eq_left (by omega)]
-      simp only [getElem_extract, Nat.add_sub_cancel]
-      congr 1; funext x; exact ih _ _ _ _
-  unfold scanrM
-  simp only [Nat.min_self]
   by_cases hs : stop ≤ min start as.size
-  · simp only [show min start as.size = stop + (as.extract stop start).size by omega]
-    exact key _ _ _ _ _
-  · rw [scanrM.loop, scanrM.loop, dite_eq_right (by omega), dite_eq_right (by omega)]
+  · suffices ∀ i h₁ h acc cur, scanrM.loop f cur (as.extract stop start) i 0 h₁ acc =
+        scanrM.loop f cur as (stop + i) stop h acc by
+      simpa [scanrM, Nat.add_sub_cancel' hs] using
+        this (min start as.size - stop) (by simp) (by omega) #[] init
+    intro i h₁ h acc cur
+    fun_induction scanrM.loop f cur (as.extract stop start) i 0 h₁ acc <;>
+      rw [scanrM.loop] <;> split <;> simp_all +zetaDelta
+    all_goals first | omega | simp (disch := omega) [Nat.add_sub_assoc, *]
+  · rw [scanrM, scanrM, scanrM.loop, scanrM.loop, dite_eq_right (by simp; omega),
+      dite_eq_right (by omega)]
 
 @[simp, grind =]
 theorem scanlM_empty [Monad m] {f : β → α → m β} {start stop : Nat} :
@@ -169,45 +149,22 @@ theorem idRun_scanrM {f : α → β → Id β} {as : Array α} :
 @[grind =]
 theorem scanlM_map [Monad m] {f : α₁ → α₂ } {g: β → α₂ → m β} {as : Array α₁} :
     (as.map f).scanlM g init = as.scanlM (g · <| f ·) init := by
-  have key : ∀ k start stop (h₁ : stop ≤ (as.map f).size) (h₂ : stop ≤ as.size) acc cur,
-      stop - start = k →
-      scanlM.loop g cur (as.map f) start stop h₁ acc =
-        scanlM.loop (g · <| f ·) cur as start stop h₂ acc := by
-    intro k
-    induction k with
-    | zero =>
-      intro start stop h₁ h₂ acc cur hk
-      rw [scanlM.loop, scanlM.loop, dite_eq_right (by omega), dite_eq_right (by omega)]
-    | succ k ih =>
-      intro start stop h₁ h₂ acc cur hk
-      rw [scanlM.loop, scanlM.loop]
-      simp only [show start < stop by omega, dite_true, getElem_map]
-      congr 1; funext x; exact ih _ _ _ _ _ _ (by omega)
-  unfold scanlM
-  simp only [size_map]
-  exact key _ _ _ _ _ _ _ rfl
+  suffices ∀ start stop h acc cur, scanlM.loop g cur (as.map f) start stop (by simpa) acc =
+      scanlM.loop (g · <| f ·) cur as start stop h acc by
+    simp only [scanlM, size_map]; exact this ..
+  intro start stop h acc cur
+  fun_induction scanlM.loop (g · <| f ·) cur as start stop h acc <;> rw [scanlM.loop] <;>
+    split <;> simp_all
 
 @[grind =]
 theorem scanrM_map [Monad m] {f : α₁ → α₂ } {g: α₂ → β → m β} {as : Array α₁} :
     (as.map f).scanrM g init = as.scanrM (fun a b => g (f a) b) init := by
-  have key : ∀ start stop (h₁ : start ≤ (as.map f).size) (h₂ : start ≤ as.size) acc cur,
-      scanrM.loop g cur (as.map f) start stop h₁ acc =
-        scanrM.loop (fun a b => g (f a) b) cur as start stop h₂ acc := by
-    intro start
-    induction start with
-    | zero =>
-      intro stop h₁ h₂ acc cur
-      rw [scanrM.loop, scanrM.loop, dite_eq_right (by omega), dite_eq_right (by omega)]
-    | succ k ih =>
-      intro stop h₁ h₂ acc cur
-      rw [scanrM.loop, scanrM.loop]
-      by_cases h : stop < k + 1
-      · simp only [h, dite_true, getElem_map]
-        congr 1; funext x; exact ih _ _ _ _ _
-      · simp [h]
-  unfold scanrM
-  simp only [size_map]
-  exact key _ _ _ _ _ _
+  suffices ∀ start stop h acc cur, scanrM.loop g cur (as.map f) start stop (by simpa) acc =
+      scanrM.loop (fun a b => g (f a) b) cur as start stop h acc by
+    simp only [scanrM, size_map]; exact this ..
+  intro start stop h acc cur
+  fun_induction scanrM.loop (fun a b => g (f a) b) cur as start stop h acc <;>
+    rw [scanrM.loop] <;> split <;> simp_all +zetaDelta
 
 /-- ### Array.scanl -/
 

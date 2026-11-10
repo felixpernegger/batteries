@@ -283,17 +283,9 @@ theorem toList_orderedInsert {α : Type u} {β : Type v} {cmp : α → α → Or
     have tail_lt : ∀ p ∈ t.toList, cmp x p.1 = .lt := fun _ hp => h.lt_of_mem hp
     simp only [orderedInsert_cons, toList, List.filter_cons]
     match w : cmp a x with
-    | .lt =>
+    | .lt | .eq =>
       have all_lt : ∀ p ∈ t.toList, cmp a p.1 = .lt :=
-        fun p hp => TransCmp.lt_trans w (tail_lt p hp)
-      have e1 : t.toList.filter (fun p => cmp a p.1 == .gt) = [] :=
-        List.filter_eq_nil_iff.mpr fun p hp => by simp [all_lt p hp]
-      have e2 : t.toList.filter (fun p => cmp a p.1 == .lt) = t.toList :=
-        List.filter_eq_self.mpr fun p hp => by simp [all_lt p hp]
-      simp [e1, e2]
-    | .eq =>
-      have all_lt : ∀ p ∈ t.toList, cmp a p.1 = .lt :=
-        fun p hp => TransCmp.lt_of_eq_of_lt w (tail_lt p hp)
+        fun p hp => TransCmp.lt_of_le_of_lt (by simp [w]) (tail_lt p hp)
       have e1 : t.toList.filter (fun p => cmp a p.1 == .gt) = [] :=
         List.filter_eq_nil_iff.mpr fun p hp => by simp [all_lt p hp]
       have e2 : t.toList.filter (fun p => cmp a p.1 == .lt) = t.toList :=
@@ -873,12 +865,7 @@ theorem filterMapVal_filterMapVal
   simp only [toAssocList_filterMapVal]
   induction l.toAssocList with
   | nil => rfl
-  | cons k v t ih =>
-    rw [AssocList.filterMapVal_cons g,
-      AssocList.filterMapVal_cons (fun a b => (g a b).bind (fun c => f a c))]
-    cases g k v with
-    | none => simpa using ih
-    | some c => cases hf : f k c <;> simp [AssocList.filterMapVal_cons, hf, ih]
+  | cons k v t ih => cases h : g k v <;> simp [AssocList.filterMapVal_cons, h, ih]
 
 end filterMapVal
 

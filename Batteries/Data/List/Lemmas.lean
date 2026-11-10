@@ -338,12 +338,12 @@ variable [BEq α]
 @[simp] theorem diff_append (l₁ l₂ l₃ : List α) : l₁.diff (l₂ ++ l₃) = (l₁.diff l₂).diff l₃ := by
   induction l₂ generalizing l₁ with
   | nil => rfl
-  | cons a l ih => simp only [cons_append, List.diff]; split <;> simp [ih]
+  | cons a l ih => simp only [cons_append, List.diff]; split <;> apply ih
 
 theorem diff_sublist : ∀ l₁ l₂ : List α, l₁.diff l₂ <+ l₁
   | _, [] => .refl _
   | l₁, a :: l₂ => by
-    simp only [List.diff]
+    rw [List.diff]
     split
     · exact (diff_sublist ..).trans erase_sublist
     · exact diff_sublist ..
